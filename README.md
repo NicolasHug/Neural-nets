@@ -9,10 +9,10 @@ Features:
 - Various activation functions (sigmoid, relu, tanh, linear)
 - Gradient checking \o/
 - Multiclass classification problems
+- Batch learning
 
 
 TODO:
 
 - Regularization
-- Batch learning
 - Dropout?

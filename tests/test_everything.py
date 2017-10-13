@@ -22,9 +22,13 @@ def test_equivalent_models():
     two = TwoLayersNN(learning_rate=learning_rate, activation='tanh',
                          n_epochs=n_epochs, seed=seed)
     nn = NeuralNet(n_neurons=[2, 5, 1], activations='tanh',
-                   learning_rate=learning_rate, n_epochs=n_epochs, seed=seed)
+                   learning_rate=learning_rate, n_epochs=n_epochs,
+                   batch_size=0, seed=seed)
     two.fit(X, y)
     nn.fit(X, y)
+    print(nn.n_epochs)
+    print(two.losses)
+    print(nn.losses)
     assert np.allclose(two.losses, nn.losses)
     assert np.allclose(two.W1, nn.W[1])
     assert np.allclose(two.W2, nn.W[2])
@@ -35,7 +39,7 @@ def test_equivalent_models():
     log_reg = LogisticReg(learning_rate=learning_rate, n_epochs=n_epochs,
                       seed=seed)
     nn = NeuralNet(n_neurons=[2, 1], learning_rate=learning_rate,
-                   n_epochs=n_epochs, seed=seed)
+                   n_epochs=n_epochs, batch_size=0, seed=seed)
 
     log_reg.fit(X, y)
     nn.fit(X, y)

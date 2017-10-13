@@ -24,7 +24,9 @@ class NeuralNet(BaseEstimator):
             a sigmoid is used, else it's a softmax.
         learning_rate(float): The learning rate for gradient descent.
         n_epochs(int): The number of iteration of the gradient descent
-            procedure.
+            procedure, i.e. number of times the whole training set is gone
+            through.
+        batch_size(int): The batch size. If 0, the full trainset is used.
         seed(int): A random seed to use for the RNG.
         check_gradients(bool): Whether to check gradients at each iteration,
             for each parameter. It's done with np.isclose() with default
@@ -39,8 +41,8 @@ class NeuralNet(BaseEstimator):
     """
 
     def __init__(self, n_neurons, activations='relu', learning_rate=.005,
-                 n_epochs=10000, seed=None, check_gradients=False,
-                 verbose=False):
+                 n_epochs=10000, batch_size=64, seed=None,
+                 check_gradients=False, verbose=False):
 
 
         self.lr = learning_rate
@@ -51,6 +53,7 @@ class NeuralNet(BaseEstimator):
         self.losses = []
         self.do_grad_check = check_gradients
         self.verbose = verbose
+        self.batch_size = batch_size
 
         if n_neurons[-1] == 1:
             self.compute_loss = self.logistic_loss
@@ -98,14 +101,6 @@ class NeuralNet(BaseEstimator):
                                         self.n_neurons[l - 1]) * .01
             self.b[l] = np.zeros((self.n_neurons[l], 1))
 
-    def logistic_loss(self, y_hat, y):
-        loss = - 1 / self.n  * np.sum(y * np.log(y_hat) +
-                                      (1 - y) * np.log(1 - y_hat))
-        return loss
-
-    def cross_entropy_loss(self, y_hat, y):
-        return - 1 / self.n * np.sum(y * np.log(y_hat))
-
     def fit(self, X, y):
         """
         Fit model with input X[n_entries, n_features] and output y.
@@ -115,30 +110,35 @@ class NeuralNet(BaseEstimator):
             if self.n_neurons[-1] != 1:  # if C > 2
                 enc = OneHotEncoder(sparse=False)
                 y = enc.fit(y[:, np.newaxis]).transform(y[:, np.newaxis]).T
+            else:
+                y = y[np.newaxis, :]
 
             return X.T, y
 
         X, y = convert_X_y(X, y)
-        self.n = X.shape[1]
 
         for current_epoch in range(self.n_epochs):
+            batches = self.get_batches(X, y)
+            for X_b, y_b in batches:
+                y_hat, cache = self.forward(X_b)
 
-            y_hat, cache = self.forward(X)
+                dW, db = self.backward(X_b, y_b, cache)
 
+                if self.do_grad_check:
+                    self.check_gradients(X_b, y_b, dW, db)
+
+                for l in range(1, self.n_layers):
+                    self.W[l] -= self.lr * dW[l]
+                    self.b[l] -= self.lr * db[l]
+
+            # Compute loss at the end of each epoch
+            y_hat, _ = self.forward(X)
             loss = self.compute_loss(y_hat, y)
             self.losses.append(loss)
             if self.verbose and current_epoch % 100 == 0:
                 print('Epoch {0:5d}, loss= {1:1.3f}'.format(current_epoch,
                                                             loss))
 
-            dW, db = self.backward(X, y, cache)
-
-            if self.do_grad_check:
-                self.check_gradients(X, y, dW, db)
-
-            for l in range(1, self.n_layers):
-                self.W[l] -= self.lr * dW[l]
-                self.b[l] -= self.lr * db[l]
 
     def forward(self, X):
         """Forward pass. Returns output layer and intermediate values in cache
@@ -160,6 +160,7 @@ class NeuralNet(BaseEstimator):
         """Backward pass. Returns gradients."""
 
         A, Z = cache
+        n = X.shape[1]  # number of training examples
 
         dZ = dict()  # Note: no need to keep dA[l]
         dW = dict()
@@ -168,16 +169,16 @@ class NeuralNet(BaseEstimator):
         # Backprop last layer
         l = self.n_layers - 1
         dZ[l] = A[l] - y
-        dW[l] = 1 / self.n * dZ[l].dot(A[l - 1].T)
-        db[l] = 1 / self.n * np.sum(dZ[l], axis=1, keepdims=True)
+        dW[l] = 1 / n * dZ[l].dot(A[l - 1].T)
+        db[l] = 1 / n * np.sum(dZ[l], axis=1, keepdims=True)
 
         # Backprop remaining layers
         for l in reversed(range(1, self.n_layers - 1)):
             dAl = self.W[l + 1].T.dot(dZ[l + 1])
             dAdZ = self.activations_deriv[l](Z[l])
             dZ[l] = dAdZ * dAl
-            dW[l] = 1 / self.n * dZ[l].dot(A[l - 1].T)
-            db[l] = 1 / self.n * np.sum(dZ[l], axis=1, keepdims=True)
+            dW[l] = 1 / n * dZ[l].dot(A[l - 1].T)
+            db[l] = 1 / n * np.sum(dZ[l], axis=1, keepdims=True)
 
         return dW, db
 
@@ -189,7 +190,43 @@ class NeuralNet(BaseEstimator):
         else:  # C > 2 class problem
             return np.argmax(y_hat, axis=0)
 
+    def logistic_loss(self, y_hat, y):
+        n = y_hat.shape[1]
+        loss = - 1 / n  * np.sum(y * np.log(y_hat) +
+                                      (1 - y) * np.log(1 - y_hat))
+        return loss
+
+    def cross_entropy_loss(self, y_hat, y):
+        n = y_hat.shape[1]
+        return - 1 / n * np.sum(y * np.log(y_hat))
+
+
+    def get_batches(self, X, y):
+        """Return a list of batches (X_b, yb) to train on."""
+
+        if self.batch_size == 0:
+            return [(X, y)]  # don't do batch GD
+
+        # Shuffle training set
+        index = np.random.permutation(X.shape[1])
+        X, y = X[:, index], y[:, index]
+        # (it's actually number of batches - 1)
+        n_batches = X.shape[1] // self.batch_size
+        batches = []
+        for k in range(n_batches):
+            batches.append(
+                (X[:, k * self.batch_size : (k + 1) * self.batch_size],
+                 y[:, k * self.batch_size : (k + 1) * self.batch_size])
+            )
+        # Add remaining instances
+        batches.append((X[:, n_batches * self.batch_size :],
+                        y[:, n_batches * self.batch_size :]))
+        return batches
+
+
     def check_gradients(self, X, y, dW, db):
+        '''Do gradient checking for every single parameter. Raises an exception
+        if computed gradients and estimated gradients are not close enough.'''
 
         epsilon = 1E-7
 
@@ -203,9 +240,6 @@ class NeuralNet(BaseEstimator):
 
                     grad_approx = (lossplus - lossminus) / (2 * epsilon)
                     grad_computed = dW[l][i, j]
-                    print(l, i, j)
-                    print(grad_approx, grad_computed)
-                    print(lossplus, lossminus)
 
                     assert np.isclose(grad_approx, grad_computed)
 

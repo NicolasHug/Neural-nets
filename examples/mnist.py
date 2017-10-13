@@ -19,9 +19,10 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.3)
 X_train = preprocessing.scale(X_train.astype('float'))
 X_test = preprocessing.scale(X_test.astype('float'))
 
-clf = NeuralNet(n_neurons=[X_train.shape[1], 5, 10],
+clf = NeuralNet(n_neurons=[X_train.shape[1], 100, 10],
                 activations='relu',
-                n_epochs=20000,
+                n_epochs=1000,
+                batch_size=128,
                 verbose=True)
 clf.fit(X_train, y_train)
 y_hat = clf.predict(X_test)
