@@ -8,12 +8,12 @@ Features:
 - Arbitrary number of layers with arbitrary number of neurons
 - Various activation functions (sigmoid, relu, tanh, linear)
 - Gradient checking \o/
-- Multiclass classification problems
+- Multiclass classification problems (cross entropy loss)
 - Batch learning
-- Regularization
+- Regularization (2-norm)
+- 'He' Initialization (works well with relu layers)
 
 
 TODO:
 
-- Xavier Initialization
 - Dropout?

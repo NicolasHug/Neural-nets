@@ -29,6 +29,9 @@ class NeuralNet(BaseEstimator):
         batch_size(int): The batch size. If 0, the full trainset is used.
         lambda_reg(float): The regularization constant. Default is 0, i.e. no
             regularization.
+        init_strat(str): Initialization strategy for weights. Can be 'He' for
+            'He' initialization, recommended for relu layers. Default is None,
+            which reverts to a centered normal distribution * 0.1.
         seed(int): A random seed to use for the RNG.
         check_gradients(bool): Whether to check gradients at each iteration,
             for each parameter. It's done with np.isclose() with default
@@ -43,9 +46,8 @@ class NeuralNet(BaseEstimator):
     """
 
     def __init__(self, n_neurons, activations='relu', learning_rate=.005,
-                 n_epochs=10000, batch_size=64, lambda_reg=0, seed=None,
-                 check_gradients=False, verbose=False):
-
+                 n_epochs=10000, batch_size=64, lambda_reg=0, init_strat=None,
+                 seed=None, check_gradients=False, verbose=False):
 
         self.lr = learning_rate
         self.n_epochs = n_epochs
@@ -57,6 +59,7 @@ class NeuralNet(BaseEstimator):
         self.verbose = verbose
         self.batch_size = batch_size
         self.lbd = lambda_reg
+        self.init_strat = init_strat
 
         if n_neurons[-1] == 1:
             self.compute_loss = self.logistic_loss
@@ -100,8 +103,14 @@ class NeuralNet(BaseEstimator):
         self.W = dict()
         self.b = dict()
         for l in range(1, self.n_layers):
-            self.W[l] = np.random.randn(self.n_neurons[l],
-                                        self.n_neurons[l - 1]) * .01
+            if self.init_strat == 'He':
+                self.W[l] = (np.random.randn(self.n_neurons[l],
+                                             self.n_neurons[l - 1]) *
+                             np.sqrt(2 / self.n_neurons[l - 1]))
+            else:
+                self.W[l] = np.random.randn(self.n_neurons[l],
+                                             self.n_neurons[l - 1]) * .01
+
             self.b[l] = np.zeros((self.n_neurons[l], 1))
 
     def fit(self, X, y):

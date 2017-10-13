@@ -12,7 +12,7 @@ from .utils import tanh_deriv
 class TwoLayersNN(BaseEstimator):
 
     def __init__(self, n_h=5, activation='relu', learning_rate=.005,
-                 n_epochs=10000, seed=None):
+                 n_epochs=1000, seed=None):
         self.lr = learning_rate
         self.n_epochs = n_epochs
         self.n_h = n_h
