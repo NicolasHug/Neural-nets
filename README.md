@@ -1,9 +1,10 @@
 neuralnets
 ==========
 
-A basic NN library for Python 3
+A basic NN library for Python 3, which is scikit-learn compliant.
 
-Features:
+Features
+--------
 
 - Arbitrary number of layers with arbitrary number of neurons
 - Various activation functions (sigmoid, relu, tanh, linear)
@@ -17,25 +18,16 @@ TODO:
 
 - Dropout?
 
-Installation
-------------
+Mnist example
+-------------
 
-First install scipy, numpy, matplotlib and scikit-learn (only used for dataset
-management). Can be done with
-
-    $ pip install -r requirements.txt
-
-then:
-
-    $ python setup.py install
-
-
-Usage, examples
----------------
-
-See the examples directory.
+Training a regularized NN with two RELU hidden layers with 100 neurons, batch
+size 128 and 'He' initialization should give you around 98% accuracy on the
+MNIST dataset.
 
     $ python examples/mnist.py
+
+The configuration of the neural net is done as follows:
 
 ```python
 clf = NeuralNet(n_neurons=[X_train.shape[1], 100, 100, 10],
@@ -48,6 +40,8 @@ clf = NeuralNet(n_neurons=[X_train.shape[1], 100, 100, 10],
 ```
 
 ![mnist_loss](imgs/loss_mnist.png)
+
+Result:
 
 ```
 Epoch     0, loss= 0.576
@@ -74,6 +68,26 @@ Accuracy on trainset: 0.990
 Accuracy on testset:  0.976
 ```
 
+Moon example
+-------------
     $ python examples/moons.py
 
 ![moon_boundaries](imgs/decision_boundary_moons.png)
+
+See other examples in the `examples` directory.
+
+
+Installation
+------------
+
+You'd be much happier with keras or tensorflow or anything BUT if you like to
+live dangerously:
+
+- First install scipy, numpy, matplotlib and scikit-learn (only used for
+  dataset management). Can be done with
+
+    $ pip install -r requirements.txt
+
+- Then:
+
+    $ python setup.py install
