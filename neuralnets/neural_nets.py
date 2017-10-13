@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.base import BaseEstimator
+from sklearn.preprocessing import OneHotEncoder
 
 from . import utils
 
@@ -17,7 +18,10 @@ class NeuralNet(BaseEstimator):
             each of the H hidden layers. Allowed values are 'sigmoid', 'tanh',
             'relu' or 'linear' (i.e. no activation). If a str is given, then
             all activations are the same for each hidden layer. If a list of
-            string is given, it must be of size H.
+            string is given, it must be of size H. Default is 'relu'. Note: the
+            activation function of the last layer is automatically inferred
+            from the value of n_neurons[-1]: if the output layer size is 1 then
+            a sigmoid is used, else it's a softmax.
         learning_rate(float): The learning rate for gradient descent.
         n_epochs(int): The number of iteration of the gradient descent
             procedure.
@@ -25,6 +29,8 @@ class NeuralNet(BaseEstimator):
         check_gradients(bool): Whether to check gradients at each iteration,
             for each parameter. It's done with np.isclose() with default
             tolerance values. Default is False.
+        verbose(bool): if True, will print the loss every 100 epochs. Default
+        is False.
 
 
     Note: The NeuralNet estimator is compliant with scikit-learn API so the
@@ -33,7 +39,8 @@ class NeuralNet(BaseEstimator):
     """
 
     def __init__(self, n_neurons, activations='relu', learning_rate=.005,
-                 n_epochs=10000, seed=None, check_gradients=False):
+                 n_epochs=10000, seed=None, check_gradients=False,
+                 verbose=False):
 
 
         self.lr = learning_rate
@@ -43,21 +50,25 @@ class NeuralNet(BaseEstimator):
         self.m = n_neurons[0]  # dimension of input layer
         self.losses = []
         self.do_grad_check = check_gradients
+        self.verbose = verbose
 
-        if n_neurons[-1] != 1:
-            exit('cross entropy is not supported yet')
+        if n_neurons[-1] == 1:
+            self.compute_loss = self.logistic_loss
+        else:
+            self.compute_loss = self.cross_entropy_loss
 
         self.init_weights(seed)
         self.init_activations(activations)
 
     def init_activations(self, activations):
 
-        if isinstance(activations, str):  # transform into list
+        if isinstance(activations, str):  # transform str into list of same str
             activations = [activations] * (self.n_layers - 2)
-        activations_dict = {
+        activations_dict = {  # map name to functions
             'sigmoid': (utils.sigmoid, utils.sigmoid_deriv),
             'relu': (utils.relu, utils.relu_deriv),
             'tanh': (utils.tanh, utils.tanh_deriv),
+            'linear': (utils.linear, utils.linear_deriv),
         }
         self.activations = dict()
         self.activations_deriv = dict()
@@ -69,10 +80,13 @@ class NeuralNet(BaseEstimator):
             except KeyError:
                 exit('Unsupported activation' + activation)
 
-        # Last layer is always a sigmoid activation
-        # TODO: change when allowing cross entropy loss
-        self.activations[self.n_layers - 1] = utils.sigmoid
-        self.activations_deriv[self.n_layers - 1] = utils.sigmoid_deriv
+        # Last layer: either sigmoid or softmax
+        if self.n_neurons[-1] == 1:
+            self.activations[self.n_layers - 1] = utils.sigmoid
+            self.activations_deriv[self.n_layers - 1] = utils.sigmoid_deriv
+        else:
+            self.activations[self.n_layers - 1] = utils.softmax
+            self.activations_deriv[self.n_layers - 1] = utils.softmax_deriv
 
     def init_weights(self, seed):
         if seed is not None:
@@ -84,24 +98,38 @@ class NeuralNet(BaseEstimator):
                                         self.n_neurons[l - 1]) * .01
             self.b[l] = np.zeros((self.n_neurons[l], 1))
 
-    def compute_loss(self, y_hat, y):
+    def logistic_loss(self, y_hat, y):
         loss = - 1 / self.n  * np.sum(y * np.log(y_hat) +
                                       (1 - y) * np.log(1 - y_hat))
         return loss
+
+    def cross_entropy_loss(self, y_hat, y):
+        return - 1 / self.n * np.sum(y * np.log(y_hat))
 
     def fit(self, X, y):
         """
         Fit model with input X[n_entries, n_features] and output y.
         """
-        X = X.T  # more convenient this way
+
+        def convert_X_y(X, y):
+            if self.n_neurons[-1] != 1:  # if C > 2
+                enc = OneHotEncoder(sparse=False)
+                y = enc.fit(y[:, np.newaxis]).transform(y[:, np.newaxis]).T
+
+            return X.T, y
+
+        X, y = convert_X_y(X, y)
         self.n = X.shape[1]
 
-        for _ in range(self.n_epochs):
+        for current_epoch in range(self.n_epochs):
 
             y_hat, cache = self.forward(X)
 
             loss = self.compute_loss(y_hat, y)
             self.losses.append(loss)
+            if self.verbose and current_epoch % 100 == 0:
+                print('Epoch {0:5d}, loss= {1:1.3f}'.format(current_epoch,
+                                                            loss))
 
             dW, db = self.backward(X, y, cache)
 
@@ -113,6 +141,8 @@ class NeuralNet(BaseEstimator):
                 self.b[l] -= self.lr * db[l]
 
     def forward(self, X):
+        """Forward pass. Returns output layer and intermediate values in cache
+        which will be used during backprop."""
 
         A = dict()
         Z = dict()
@@ -127,6 +157,8 @@ class NeuralNet(BaseEstimator):
         return A[self.n_layers - 1], cache
 
     def backward(self, X, y, cache):
+        """Backward pass. Returns gradients."""
+
         A, Z = cache
 
         dZ = dict()  # Note: no need to keep dA[l]
@@ -152,7 +184,10 @@ class NeuralNet(BaseEstimator):
     def predict(self, X):
         """Predict outputs of entries in X [n_entries, n_features]"""
         y_hat, _ = self.forward(X.T)
-        return (y_hat > .5).squeeze().astype('int')
+        if self.n_neurons[-1] == 1:  # 2-class problem
+            return (y_hat > .5).squeeze().astype('int')
+        else:  # C > 2 class problem
+            return np.argmax(y_hat, axis=0)
 
     def check_gradients(self, X, y, dW, db):
 
@@ -168,6 +203,9 @@ class NeuralNet(BaseEstimator):
 
                     grad_approx = (lossplus - lossminus) / (2 * epsilon)
                     grad_computed = dW[l][i, j]
+                    print(l, i, j)
+                    print(grad_approx, grad_computed)
+                    print(lossplus, lossminus)
 
                     assert np.isclose(grad_approx, grad_computed)
 
@@ -182,7 +220,6 @@ class NeuralNet(BaseEstimator):
 
                 grad_approx = (lossplus - lossminus) / (2 * epsilon)
                 grad_computed = db[l][i]
-                print(grad_computed, grad_approx)
 
                 assert np.isclose(grad_approx, grad_computed)
 

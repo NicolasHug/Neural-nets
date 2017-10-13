@@ -46,7 +46,7 @@ def test_equivalent_models():
 
 def test_check_gradients():
     """
-    Gradient-check for a 3-layers NN on two datasets.
+    Gradient-check for NN on various datasets, architecture and loss functions.
     """
 
     learning_rate = .005
@@ -54,13 +54,15 @@ def test_check_gradients():
 
     seed = 0
 
-    X, y = make_blobs(n_samples=1000, centers=2, n_features=2,
+    X, y = make_blobs(n_samples=100, centers=3, n_features=2,
                       random_state=seed)
-    nn = NeuralNet(n_neurons=[2, 2, 2, 1], activations='tanh',
+    nn = NeuralNet(n_neurons=[2, 2, 3], activations='tanh',
                    learning_rate=learning_rate, n_epochs=n_epochs, seed=seed,
                    check_gradients=True)
     nn.fit(X, y)  # would raise exception if grad check fails
 
-
+    nn = NeuralNet(n_neurons=[2, 2, 2, 1], activations='tanh',
+                   learning_rate=learning_rate, n_epochs=n_epochs, seed=seed,
+                   check_gradients=True)
     X, y = make_moons(n_samples=100, noise=.1, random_state=seed)
     nn.fit(X, y)  # would raise exception if grad check fails

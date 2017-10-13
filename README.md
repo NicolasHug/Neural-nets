@@ -8,3 +8,11 @@ Features:
 - Arbitrary number of layers with arbitrary number of neurons
 - Various activation functions (sigmoid, relu, tanh, linear)
 - Gradient checking \o/
+- Multiclass classification problems
+
+
+TODO:
+
+- Regularization
+- Batch learning
+- Dropout?
