@@ -26,10 +26,10 @@ def test_equivalent_models():
                    batch_size=0, seed=seed)
     two.fit(X, y)
     nn.fit(X, y)
-    print(nn.n_epochs)
-    print(two.losses)
-    print(nn.losses)
-    assert np.allclose(two.losses, nn.losses)
+
+    # indexes differ because loss is computed at the END of each epoch for the
+    # NeuralNet class
+    assert np.allclose(two.losses[1:], nn.losses[:-1])
     assert np.allclose(two.W1, nn.W[1])
     assert np.allclose(two.W2, nn.W[2])
     assert np.allclose(two.b1, nn.b[1])
@@ -43,7 +43,7 @@ def test_equivalent_models():
 
     log_reg.fit(X, y)
     nn.fit(X, y)
-    assert np.allclose(log_reg.losses, nn.losses)
+    assert np.allclose(log_reg.losses[1:], nn.losses[:-1])
     assert np.allclose(log_reg.w.squeeze(), nn.W[1])
     assert np.allclose(log_reg.b, nn.b[1])
 
