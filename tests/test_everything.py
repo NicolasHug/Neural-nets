@@ -1,5 +1,6 @@
 import numpy as np
-from sklearn.datasets.samples_generator import make_blobs
+from sklearn.datasets import make_blobs
+from sklearn.datasets import make_moons
 
 from neuralnets import NeuralNet
 from neuralnets import LogisticReg
@@ -41,3 +42,25 @@ def test_equivalent_models():
     assert np.allclose(log_reg.losses, nn.losses)
     assert np.allclose(log_reg.w.squeeze(), nn.W[1])
     assert np.allclose(log_reg.b, nn.b[1])
+
+
+def test_check_gradients():
+    """
+    Gradient-check for a 3-layers NN on two datasets.
+    """
+
+    learning_rate = .005
+    n_epochs = 1000
+
+    seed = 0
+
+    X, y = make_blobs(n_samples=1000, centers=2, n_features=2,
+                      random_state=seed)
+    nn = NeuralNet(n_neurons=[2, 2, 2, 1], activations='tanh',
+                   learning_rate=learning_rate, n_epochs=n_epochs, seed=seed,
+                   check_gradients=True)
+    nn.fit(X, y)  # would raise exception if grad check fails
+
+
+    X, y = make_moons(n_samples=100, noise=.1, random_state=seed)
+    nn.fit(X, y)  # would raise exception if grad check fails

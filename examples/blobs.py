@@ -2,7 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.datasets.samples_generator import make_blobs
+from sklearn.datasets import make_blobs
 
 from plot_decision import plot_decision_boundaries
 from neuralnets import LogisticReg

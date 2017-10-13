@@ -22,18 +22,27 @@ class NeuralNet(BaseEstimator):
         n_epochs(int): The number of iteration of the gradient descent
             procedure.
         seed(int): A random seed to use for the RNG.
+        check_gradients(bool): Whether to check gradients at each iteration,
+            for each parameter. It's done with np.isclose() with default
+            tolerance values. Default is False.
+
+
+    Note: The NeuralNet estimator is compliant with scikit-learn API so the
+    inputs X fit and predict is [n_entries, n_features], but internally we use
+    X.T because it seems more convenient.
     """
 
     def __init__(self, n_neurons, activations='relu', learning_rate=.005,
-                 n_epochs=10000, seed=None):
+                 n_epochs=10000, seed=None, check_gradients=False):
 
 
         self.lr = learning_rate
         self.n_epochs = n_epochs
-        self.losses = []
         self.n_neurons = n_neurons
         self.n_layers = len(self.n_neurons)  # including input and output
         self.m = n_neurons[0]  # dimension of input layer
+        self.losses = []
+        self.do_grad_check = check_gradients
 
         if n_neurons[-1] != 1:
             exit('cross entropy is not supported yet')
@@ -75,19 +84,29 @@ class NeuralNet(BaseEstimator):
                                         self.n_neurons[l - 1]) * .01
             self.b[l] = np.zeros((self.n_neurons[l], 1))
 
+    def compute_loss(self, y_hat, y):
+        loss = - 1 / self.n  * np.sum(y * np.log(y_hat) +
+                                      (1 - y) * np.log(1 - y_hat))
+        return loss
+
     def fit(self, X, y):
-        X = X.T
+        """
+        Fit model with input X[n_entries, n_features] and output y.
+        """
+        X = X.T  # more convenient this way
         self.n = X.shape[1]
 
         for _ in range(self.n_epochs):
 
             y_hat, cache = self.forward(X)
 
-            loss = - 1 / self.n  * np.sum(y * np.log(y_hat) +
-                                          (1 - y) * np.log(1 - y_hat))
+            loss = self.compute_loss(y_hat, y)
             self.losses.append(loss)
 
             dW, db = self.backward(X, y, cache)
+
+            if self.do_grad_check:
+                self.check_gradients(X, y, dW, db)
 
             for l in range(1, self.n_layers):
                 self.W[l] -= self.lr * dW[l]
@@ -131,5 +150,40 @@ class NeuralNet(BaseEstimator):
         return dW, db
 
     def predict(self, X):
+        """Predict outputs of entries in X [n_entries, n_features]"""
         y_hat, _ = self.forward(X.T)
         return (y_hat > .5).squeeze().astype('int')
+
+    def check_gradients(self, X, y, dW, db):
+
+        epsilon = 1E-7
+
+        for l, W in self.W.items():
+            for i in range(W.shape[0]):
+                for j in range(W.shape[1]):
+                    W[i, j] += epsilon
+                    lossplus = self.compute_loss(self.forward(X)[0], y)
+                    W[i, j] -= 2 * epsilon
+                    lossminus = self.compute_loss(self.forward(X)[0], y)
+
+                    grad_approx = (lossplus - lossminus) / (2 * epsilon)
+                    grad_computed = dW[l][i, j]
+
+                    assert np.isclose(grad_approx, grad_computed)
+
+                    W[i, j] += epsilon  # reset param to initial value
+
+        for l, b in self.b.items():
+            for i in range(b.shape[0]):
+                b[i] += epsilon
+                lossplus = self.compute_loss(self.forward(X)[0], y)
+                b[i] -= 2 * epsilon
+                lossminus = self.compute_loss(self.forward(X)[0], y)
+
+                grad_approx = (lossplus - lossminus) / (2 * epsilon)
+                grad_computed = db[l][i]
+                print(grad_computed, grad_approx)
+
+                assert np.isclose(grad_approx, grad_computed)
+
+                b[i] += epsilon  # reset param to initial value
