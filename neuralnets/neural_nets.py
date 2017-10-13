@@ -27,12 +27,14 @@ class NeuralNet(BaseEstimator):
             procedure, i.e. number of times the whole training set is gone
             through.
         batch_size(int): The batch size. If 0, the full trainset is used.
+        lambda_reg(float): The regularization constant. Default is 0, i.e. no
+            regularization.
         seed(int): A random seed to use for the RNG.
         check_gradients(bool): Whether to check gradients at each iteration,
             for each parameter. It's done with np.isclose() with default
             tolerance values. Default is False.
-        verbose(bool): if True, will print the loss every 100 epochs. Default
-        is False.
+        verbose(int): if not False or 0, will print the loss every 'verbose'
+            epochs. Default is False.
 
 
     Note: The NeuralNet estimator is compliant with scikit-learn API so the
@@ -41,7 +43,7 @@ class NeuralNet(BaseEstimator):
     """
 
     def __init__(self, n_neurons, activations='relu', learning_rate=.005,
-                 n_epochs=10000, batch_size=64, seed=None,
+                 n_epochs=10000, batch_size=64, lambda_reg=0, seed=None,
                  check_gradients=False, verbose=False):
 
 
@@ -54,6 +56,7 @@ class NeuralNet(BaseEstimator):
         self.do_grad_check = check_gradients
         self.verbose = verbose
         self.batch_size = batch_size
+        self.lbd = lambda_reg
 
         if n_neurons[-1] == 1:
             self.compute_loss = self.logistic_loss
@@ -135,7 +138,7 @@ class NeuralNet(BaseEstimator):
             y_hat, _ = self.forward(X)
             loss = self.compute_loss(y_hat, y)
             self.losses.append(loss)
-            if self.verbose and current_epoch % 100 == 0:
+            if self.verbose and current_epoch % self.verbose == 0:
                 print('Epoch {0:5d}, loss= {1:1.3f}'.format(current_epoch,
                                                             loss))
 
@@ -169,7 +172,7 @@ class NeuralNet(BaseEstimator):
         # Backprop last layer
         l = self.n_layers - 1
         dZ[l] = A[l] - y
-        dW[l] = 1 / n * dZ[l].dot(A[l - 1].T)
+        dW[l] = 1 / n * (dZ[l].dot(A[l - 1].T) + self.lbd * self.W[l])
         db[l] = 1 / n * np.sum(dZ[l], axis=1, keepdims=True)
 
         # Backprop remaining layers
@@ -177,7 +180,7 @@ class NeuralNet(BaseEstimator):
             dAl = self.W[l + 1].T.dot(dZ[l + 1])
             dAdZ = self.activations_deriv[l](Z[l])
             dZ[l] = dAdZ * dAl
-            dW[l] = 1 / n * dZ[l].dot(A[l - 1].T)
+            dW[l] = 1 / n * (dZ[l].dot(A[l - 1].T) + self.lbd * self.W[l])
             db[l] = 1 / n * np.sum(dZ[l], axis=1, keepdims=True)
 
         return dW, db
@@ -194,11 +197,17 @@ class NeuralNet(BaseEstimator):
         n = y_hat.shape[1]
         loss = - 1 / n  * np.sum(y * np.log(y_hat) +
                                       (1 - y) * np.log(1 - y_hat))
+        loss += self.lbd / (2 * n) * np.sum([np.sum(W**2) for W in
+                                             self.W.values()])
         return loss
 
     def cross_entropy_loss(self, y_hat, y):
         n = y_hat.shape[1]
-        return - 1 / n * np.sum(y * np.log(y_hat))
+
+        loss = - 1 / n * np.sum(y * np.log(y_hat))
+        loss += self.lbd / (2 * n) * np.sum([np.sum(W**2) for W in
+                                             self.W.values()])
+        return loss
 
 
     def get_batches(self, X, y):

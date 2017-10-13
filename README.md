@@ -10,9 +10,10 @@ Features:
 - Gradient checking \o/
 - Multiclass classification problems
 - Batch learning
+- Regularization
 
 
 TODO:
 
-- Regularization
+- Xavier Initialization
 - Dropout?
