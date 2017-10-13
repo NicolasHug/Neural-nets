@@ -1,3 +1,4 @@
+"""Utilities (activation functions)"""
 import numpy as np
 
 

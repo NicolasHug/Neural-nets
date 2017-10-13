@@ -5,6 +5,8 @@ from .utils import sigmoid
 from .utils import sigmoid_deriv
 from .utils import relu
 from .utils import relu_deriv
+from .utils import tanh
+from .utils import tanh_deriv
 
 
 class TwoLayersNN(BaseEstimator):
@@ -23,6 +25,9 @@ class TwoLayersNN(BaseEstimator):
         elif activation == 'sigmoid':
             self.activation = sigmoid
             self.activation_deriv = sigmoid_deriv
+        elif activation == 'tanh':
+            self.activation = tanh
+            self.activation_deriv = tanh_deriv
         else:
             exit('Unkown activation')
 
