@@ -10,6 +10,8 @@ from .utils import tanh_deriv
 
 
 class TwoLayersNN(BaseEstimator):
+    """A 2 layers NN. Mostly useful to check the more general NeuralNet
+    class."""
 
     def __init__(self, n_h=5, activation='relu', learning_rate=.005,
                  n_epochs=1000, seed=None):

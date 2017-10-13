@@ -1,7 +1,8 @@
-neuralnets
-==========
+Neural-Nets
+===========
 
-A basic NN library for Python 3, which is scikit-learn compliant.
+A basic scikit-learn compatible NN library for Python 3, built from scratch
+only using numpy.
 
 Features
 --------
@@ -16,14 +17,15 @@ Features
 
 TODO:
 
-- Dropout?
+- Dropout
+- adam
 
-Mnist example
+MNIST example
 -------------
 
 Training a regularized NN with two RELU hidden layers with 100 neurons, batch
-size 128 and 'He' initialization should give you around 98% accuracy on the
-MNIST dataset.
+size 128 and 'He' initialization for 200 epochs *should* give you about 98%
+accuracy on the MNIST dataset.
 
     $ python examples/mnist.py
 

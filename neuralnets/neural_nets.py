@@ -5,7 +5,7 @@ from sklearn.preprocessing import OneHotEncoder
 from . import utils
 
 class NeuralNet(BaseEstimator):
-    """A basic neural network class.
+    """A neural network model.
 
     Args:
         n_neurons (list):list of H + 2 integers indicating the number of
@@ -66,10 +66,11 @@ class NeuralNet(BaseEstimator):
         else:
             self.compute_loss = self.cross_entropy_loss
 
-        self.init_weights(seed)
+        self.init_params(seed)
         self.init_activations(activations)
 
     def init_activations(self, activations):
+        '''Initialize activations.'''
 
         if isinstance(activations, str):  # transform str into list of same str
             activations = [activations] * (self.n_layers - 2)
@@ -97,7 +98,9 @@ class NeuralNet(BaseEstimator):
             self.activations[self.n_layers - 1] = utils.softmax
             self.activations_deriv[self.n_layers - 1] = utils.softmax_deriv
 
-    def init_weights(self, seed):
+    def init_params(self, seed):
+        '''Initialize weights and biases.'''
+
         if seed is not None:
             np.random.seed(seed)
         self.W = dict()
@@ -114,9 +117,7 @@ class NeuralNet(BaseEstimator):
             self.b[l] = np.zeros((self.n_neurons[l], 1))
 
     def fit(self, X, y):
-        """
-        Fit model with input X[n_entries, n_features] and output y.
-        """
+        """ Fit model with input X[n_entries, n_features] and output y."""
 
         def convert_X_y(X, y):
             if self.n_neurons[-1] != 1:  # if C > 2
@@ -151,6 +152,7 @@ class NeuralNet(BaseEstimator):
                 print('Epoch {0:5d}, loss= {1:1.3f}'.format(current_epoch,
                                                             loss))
 
+        return self
 
     def forward(self, X):
         """Forward pass. Returns output layer and intermediate values in cache

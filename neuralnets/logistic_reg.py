@@ -5,6 +5,8 @@ from .utils import sigmoid
 
 
 class LogisticReg(BaseEstimator):
+    """Logistic regression model. Mostly useful to check the more general
+    NeuralNet class."""
 
     def __init__(self, learning_rate=.005, n_epochs=10000, seed=None):
         self.lr = learning_rate
