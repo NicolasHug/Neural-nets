@@ -1,24 +1,32 @@
 import numpy as np
 from sklearn.base import BaseEstimator
 
-from .utils import sigmoid
-from .utils import sigmoid_deriv
-from .utils import relu
-from .utils import relu_deriv
-from .utils import tanh
-from .utils import tanh_deriv
+from . import utils
 
 class NeuralNet(BaseEstimator):
+    """A basic neural network class.
 
-    def __init__(self, n_neurons, activation='relu', learning_rate=.005,
+    Args:
+        n_neurons (list):list of H + 2 integers indicating the number of
+            neurons in each layer, including input and output layers. First
+            value is the number of features of a training example. Last value
+            is either 1 (logistic loss) or C > 1 (cross entropy), where C is
+            the number of classes. In-between, the H values indicate the number
+            of neurons of each of the H hidden layer.
+        activations (str or list of str): The activation functions to use for
+            each of the H hidden layers. Allowed values are 'sigmoid', 'tanh',
+            'relu' or 'linear' (i.e. no activation). If a str is given, then
+            all activations are the same for each hidden layer. If a list of
+            string is given, it must be of size H.
+        learning_rate(float): The learning rate for gradient descent.
+        n_epochs(int): The number of iteration of the gradient descent
+            procedure.
+        seed(int): A random seed to use for the RNG.
+    """
+
+    def __init__(self, n_neurons, activations='relu', learning_rate=.005,
                  n_epochs=10000, seed=None):
 
-        """
-        n_neurons = list of H + 2 integers indicating. First element is the
-        number of features of a training example. Last element is either 1
-        (logistic loss) or C > 1 (cross entropy). In-between, the H values
-        indicate the number of neurons of each hidden layer.
-        """
 
         self.lr = learning_rate
         self.n_epochs = n_epochs
@@ -26,34 +34,40 @@ class NeuralNet(BaseEstimator):
         self.n_neurons = n_neurons
         self.n_layers = len(self.n_neurons)  # including input and output
         self.m = n_neurons[0]  # dimension of input layer
-        self.seed = seed
 
         if n_neurons[-1] != 1:
             exit('cross entropy is not supported yet')
 
+        self.init_weights(seed)
+        self.init_activations(activations)
+
+    def init_activations(self, activations):
+
+        if isinstance(activations, str):  # transform into list
+            activations = [activations] * (self.n_layers - 2)
+        activations_dict = {
+            'sigmoid': (utils.sigmoid, utils.sigmoid_deriv),
+            'relu': (utils.relu, utils.relu_deriv),
+            'tanh': (utils.tanh, utils.tanh_deriv),
+        }
         self.activations = dict()
         self.activations_deriv = dict()
-        for l in range(1, self.n_layers - 1):
-            if activation == 'relu':
-                self.activations[l] = relu
-                self.activations_deriv[l] = relu_deriv
-            elif activation == 'sigmoid':
-                self.activations[l] = sigmoid
-                self.activations_deriv[l] = sigmoid_deriv
-            elif activation == 'tanh':
-                self.activations[l] = tanh
-                self.activations_deriv[l] = tanh_deriv
-            else:
-                exit('Unkown activation')
+        for i, activation in enumerate(activations):
+            try:
+                act_fun, deriv_fun = activations_dict[activation]
+                self.activations[i + 1] = act_fun
+                self.activations_deriv[i + 1] = deriv_fun
+            except KeyError:
+                exit('Unsupported activation' + activation)
 
-        self.activations[self.n_layers - 1] = sigmoid
-        self.activations_deriv[self.n_layers - 1] = sigmoid_deriv
+        # Last layer is always a sigmoid activation
+        # TODO: change when allowing cross entropy loss
+        self.activations[self.n_layers - 1] = utils.sigmoid
+        self.activations_deriv[self.n_layers - 1] = utils.sigmoid_deriv
 
-        self.init_weights()
-
-    def init_weights(self):
-        if self.seed is not None:
-            np.random.seed(self.seed)
+    def init_weights(self, seed):
+        if seed is not None:
+            np.random.seed(seed)
         self.W = dict()
         self.b = dict()
         for l in range(1, self.n_layers):

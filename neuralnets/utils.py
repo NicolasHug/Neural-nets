@@ -18,3 +18,9 @@ def tanh(x):
 
 def tanh_deriv(x):
     return 1 - np.tanh(x)**2
+
+def linear(x):  # linear is in fact 'no activation'
+    return x
+
+def linear_deriv(x):
+    return 1
