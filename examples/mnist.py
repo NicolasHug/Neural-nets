@@ -18,10 +18,12 @@ X_test = preprocessing.scale(X_test.astype('float'))
 
 clf = NeuralNet(n_neurons=[X_train.shape[1], 100, 100, 10],
                 activations='relu',
-                n_epochs=200,
+                learning_rate=.001,
+                n_epochs=20,
                 batch_size=128,
                 lambda_reg=.4,
                 init_strat='He',
+                solver='adam',
                 verbose=10)
 
 clf.fit(X_train, y_train)
@@ -29,11 +31,6 @@ y_hat = clf.predict(X_train)
 print('Accuracy on trainset: {0:1.3f}'.format(accuracy_score(y_hat, y_train)))
 y_hat = clf.predict(X_test)
 print('Accuracy on testset:  {0:1.3f}'.format(accuracy_score(y_hat, y_test)))
-
-# Plot loss against epochs
-plt.plot(clf.losses)
-plt.title('Loss vs epochs')
-plt.show(block=False)
 
 plot_misclassified = input('Do you want to see the misclassified images? ([y] / n)')
 if plot_misclassified.lower() in ('', 'y', 'yes'):

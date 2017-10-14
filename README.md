@@ -14,18 +14,19 @@ Features
 - Batch learning
 - Regularization (2-norm)
 - 'He' Initialization (works well with relu layers)
+- SGD and adam solver
 
 TODO:
 
 - Dropout
-- adam
 
 MNIST example
 -------------
 
 Training a regularized NN with two RELU hidden layers with 100 neurons, batch
 size 128 and 'He' initialization for 200 epochs *should* give you about 98%
-accuracy on the MNIST dataset.
+accuracy on the MNIST dataset. (Could be much faster using adam instead of
+SGD).
 
     $ python examples/mnist.py
 
@@ -38,6 +39,7 @@ clf = NeuralNet(n_neurons=[X_train.shape[1], 100, 100, 10],
                 batch_size=128,
                 lambda_reg=.4,
                 init_strat='He',
+                solver='sgd',
                 verbose=10)
 ```
 

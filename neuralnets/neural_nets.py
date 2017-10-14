@@ -32,6 +32,12 @@ class NeuralNet(BaseEstimator):
         init_strat(str): Initialization strategy for weights. Can be 'He' for
             'He' initialization, recommended for relu layers. Default is None,
             which reverts to a centered normal distribution * 0.1.
+        solver(str): Solver to use: either 'sgd' or 'adam' for SGD or... adam
+            ;). Default is 'sgd'.
+        beta_1(float): Exponential decay rate for first moment estimate (only
+            used if solver is 'adam'.
+        beta_2(float): Exponential decay rate for second moment estimate (only
+            used if solver is 'adam'.
         seed(int): A random seed to use for the RNG.
         check_gradients(bool): Whether to check gradients at each iteration,
             for each parameter. It's done with np.isclose() with default
@@ -46,28 +52,31 @@ class NeuralNet(BaseEstimator):
     """
 
     def __init__(self, n_neurons, activations='relu', learning_rate=.005,
-                 n_epochs=10000, batch_size=64, lambda_reg=0, init_strat=None,
-                 seed=None, check_gradients=False, verbose=False):
+                 n_epochs=200, batch_size=64, lambda_reg=0, init_strat=None,
+                 solver='sgd', beta_1=.9, beta_2=.999, seed=None,
+                 check_gradients=False, verbose=False):
 
-        self.lr = learning_rate
-        self.n_epochs = n_epochs
         self.n_neurons = n_neurons
         self.n_layers = len(self.n_neurons)  # including input and output
-        self.m = n_neurons[0]  # dimension of input layer
-        self.losses = []
-        self.do_grad_check = check_gradients
-        self.verbose = verbose
+        self.init_activations(activations)
+        self.lr = learning_rate
+        self.n_epochs = n_epochs
         self.batch_size = batch_size
         self.lbd = lambda_reg
-        self.init_strat = init_strat
+        self.gd_step = self.sgd if solver == 'sgd' else self.adam
+        self.do_grad_check = check_gradients
+        self.verbose = verbose
+        self.losses = []
 
-        if n_neurons[-1] == 1:
+        if n_neurons[-1] == 1:  # 2 classes problem, 1 output neuron
             self.compute_loss = self.logistic_loss
-        else:
+        else:  # C > 2 classes problem, C output neurons
             self.compute_loss = self.cross_entropy_loss
 
-        self.init_params(seed)
-        self.init_activations(activations)
+        self.init_params(seed, init_strat)
+
+        if solver != 'sgd':  # i.e. adam
+            self.init_adam(beta_1, beta_2)
 
     def init_activations(self, activations):
         '''Initialize activations.'''
@@ -98,7 +107,7 @@ class NeuralNet(BaseEstimator):
             self.activations[self.n_layers - 1] = utils.softmax
             self.activations_deriv[self.n_layers - 1] = utils.softmax_deriv
 
-    def init_params(self, seed):
+    def init_params(self, seed, init_strat):
         '''Initialize weights and biases.'''
 
         if seed is not None:
@@ -106,7 +115,7 @@ class NeuralNet(BaseEstimator):
         self.W = dict()
         self.b = dict()
         for l in range(1, self.n_layers):
-            if self.init_strat == 'He':
+            if init_strat == 'He':
                 self.W[l] = (np.random.randn(self.n_neurons[l],
                                              self.n_neurons[l - 1]) *
                              np.sqrt(2 / self.n_neurons[l - 1]))
@@ -115,6 +124,18 @@ class NeuralNet(BaseEstimator):
                                              self.n_neurons[l - 1]) * .01
 
             self.b[l] = np.zeros((self.n_neurons[l], 1))
+
+    def init_adam(self, beta_1, beta_2):
+        '''Initialize adam parameters.'''
+        layers = range(1, self.n_layers)
+        self.mW = {l: np.zeros(self.W[l].shape) for l in layers}
+        self.vW = {l: np.zeros(self.W[l].shape) for l in layers}
+        self.mb = {l: np.zeros(self.b[l].shape) for l in layers}
+        self.vb = {l: np.zeros(self.b[l].shape) for l in layers}
+        self.epsilon = 10E-8
+        self.adam_counter = 0  # number of times self.adam is called
+        self.beta_1 = beta_1
+        self.beta_2 = beta_2
 
     def fit(self, X, y):
         """ Fit model with input X[n_entries, n_features] and output y."""
@@ -134,15 +155,12 @@ class NeuralNet(BaseEstimator):
             batches = self.get_batches(X, y)
             for X_b, y_b in batches:
                 y_hat, cache = self.forward(X_b)
-
                 dW, db = self.backward(X_b, y_b, cache)
 
                 if self.do_grad_check:
                     self.check_gradients(X_b, y_b, dW, db)
 
-                for l in range(1, self.n_layers):
-                    self.W[l] -= self.lr * dW[l]
-                    self.b[l] -= self.lr * db[l]
+                self.gd_step(dW, db)
 
             # Compute loss at the end of each epoch
             y_hat, _ = self.forward(X)
@@ -153,6 +171,28 @@ class NeuralNet(BaseEstimator):
                                                             loss))
 
         return self
+
+    def sgd(self, dW, db):
+        '''SGD step.'''
+        for l in range(1, self.n_layers):
+            self.W[l] -= self.lr * dW[l]
+            self.b[l] -= self.lr * db[l]
+
+    def adam(self, dW, db):
+        '''Adam step.'''
+        self.adam_counter += 1
+        for l in range(1, self.n_layers):
+            self.mW[l] = self.beta_1 * self.mW[l] + (1 - self.beta_1) * dW[l]
+            self.vW[l] = self.beta_2 * self.vW[l] + (1 - self.beta_2) * dW[l]**2
+            m_unbiased = self.mW[l] / (1 - self.beta_1**self.adam_counter)
+            v_unbiased = self.vW[l] / (1 - self.beta_2**self.adam_counter)
+            self.W[l] -= self.lr * m_unbiased / (np.sqrt(v_unbiased) + self.epsilon)
+
+            self.mb[l] = self.beta_1 * self.mb[l] + (1 - self.beta_1) * db[l]
+            self.vb[l] = self.beta_2 * self.vb[l] + (1 - self.beta_2) * db[l]**2
+            m_unbiased = self.mb[l] / (1 - self.beta_1**self.adam_counter)
+            v_unbiased = self.vb[l] / (1 - self.beta_2**self.adam_counter)
+            self.b[l] -= self.lr * m_unbiased / (np.sqrt(v_unbiased) + self.epsilon)
 
     def forward(self, X):
         """Forward pass. Returns output layer and intermediate values in cache
@@ -182,7 +222,7 @@ class NeuralNet(BaseEstimator):
 
         # Backprop last layer
         l = self.n_layers - 1
-        dZ[l] = A[l] - y
+        dZ[l] = A[l] - y  # works with both log loss and cross-entropy
         dW[l] = 1 / n * (dZ[l].dot(A[l - 1].T) + self.lbd * self.W[l])
         db[l] = 1 / n * np.sum(dZ[l], axis=1, keepdims=True)
 
