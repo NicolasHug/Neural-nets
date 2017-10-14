@@ -95,3 +95,10 @@ live dangerously:
 - Then:
 
     $ python setup.py install
+
+ 
+Documentation
+-------------
+
+Minimal doc of the NeuralNet class is available
+[here](http://neural-nets.readthedocs.io)
