@@ -15,9 +15,6 @@ Features
 - Regularization (2-norm)
 - 'He' Initialization (works well with relu layers)
 - SGD and adam solver
-
-TODO:
-
 - Dropout
 
 MNIST example

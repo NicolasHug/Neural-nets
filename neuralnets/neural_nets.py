@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.preprocessing import OneHotEncoder
 
-from . import utils
+from .utils import ACTIVATIONS
 
 class NeuralNet(BaseEstimator):
     """A neural network model.
@@ -11,9 +11,10 @@ class NeuralNet(BaseEstimator):
         n_neurons (list):list of H + 2 integers indicating the number of
             neurons in each layer, including input and output layers. First
             value is the number of features of a training example. Last value
-            is either 1 (logistic loss) or C > 1 (cross entropy), where C is
-            the number of classes. In-between, the H values indicate the number
-            of neurons of each of the H hidden layer.
+            is either 1 (2, classes, logistic loss) or C > 1 (C > 2 classes,
+            cross entropy), where C is the number of classes. In-between, the H
+            values indicate the number of neurons of each of the H hidden
+            layer.
         activations (str or list of str): The activation functions to use for
             each of the H hidden layers. Allowed values are 'sigmoid', 'tanh',
             'relu' or 'linear' (i.e. no activation). If a str is given, then
@@ -22,11 +23,15 @@ class NeuralNet(BaseEstimator):
             activation function of the last layer is automatically inferred
             from the value of n_neurons[-1]: if the output layer size is 1 then
             a sigmoid is used, else it's a softmax.
-        learning_rate(float): The learning rate for gradient descent.
+        learning_rate(float): The learning rate for gradient descent. Default
+            is .005.
         n_epochs(int): The number of iteration of the gradient descent
             procedure, i.e. number of times the whole training set is gone
-            through.
+            through. Default is 200.
         batch_size(int): The batch size. If 0, the full trainset is used.
+            Default is 64.
+        dropout(float): Probability of keeping a neuron of the hidden layers in
+            dropout. Default is 1, i.e. no dropout is applied.
         lambda_reg(float): The regularization constant. Default is 0, i.e. no
             regularization.
         init_strat(str): Initialization strategy for weights. Can be 'He' for
@@ -35,10 +40,11 @@ class NeuralNet(BaseEstimator):
         solver(str): Solver to use: either 'sgd' or 'adam' for SGD or... adam
             ;). Default is 'sgd'.
         beta_1(float): Exponential decay rate for first moment estimate (only
-            used if solver is 'adam'.
+            used if solver is 'adam'. Default is .9
         beta_2(float): Exponential decay rate for second moment estimate (only
-            used if solver is 'adam'.
-        seed(int): A random seed to use for the RNG.
+            used if solver is 'adam'. Default is .999.
+        seed(int): A random seed to use for the RNG at weights initialization.
+            Default is None, i.e. no seeding is done.
         check_gradients(bool): Whether to check gradients at each iteration,
             for each parameter. It's done with np.isclose() with default
             tolerance values. Default is False.
@@ -46,15 +52,15 @@ class NeuralNet(BaseEstimator):
             epochs. Default is False.
 
 
-    Note: The NeuralNet estimator is compliant with scikit-learn API so the
-    inputs X fit and predict is [n_entries, n_features], but internally we use
-    X.T because it seems more convenient.
+    Note: The NeuralNet estimator is (roughly) compliant with scikit-learn API
+    so the inputs X fit and predict is [n_entries, n_features], but internally
+    we use X.T because it seems more convenient.
     """
 
     def __init__(self, n_neurons, activations='relu', learning_rate=.005,
-                 n_epochs=200, batch_size=64, lambda_reg=0, init_strat=None,
-                 solver='sgd', beta_1=.9, beta_2=.999, seed=None,
-                 check_gradients=False, verbose=False):
+                 n_epochs=200, batch_size=64, dropout=1, lambda_reg=0,
+                 init_strat=None, solver='sgd', beta_1=.9, beta_2=.999,
+                 seed=None, check_gradients=False, verbose=False):
 
         self.n_neurons = n_neurons
         self.n_layers = len(self.n_neurons)  # including input and output
@@ -62,6 +68,7 @@ class NeuralNet(BaseEstimator):
         self.lr = learning_rate
         self.n_epochs = n_epochs
         self.batch_size = batch_size
+        self.dropout = dropout
         self.lbd = lambda_reg
         self.gd_step = self.sgd if solver == 'sgd' else self.adam
         self.do_grad_check = check_gradients
@@ -83,29 +90,22 @@ class NeuralNet(BaseEstimator):
 
         if isinstance(activations, str):  # transform str into list of same str
             activations = [activations] * (self.n_layers - 2)
-        activations_dict = {  # map name to functions
-            'sigmoid': (utils.sigmoid, utils.sigmoid_deriv),
-            'relu': (utils.relu, utils.relu_deriv),
-            'tanh': (utils.tanh, utils.tanh_deriv),
-            'linear': (utils.linear, utils.linear_deriv),
-        }
         self.activations = dict()
         self.activations_deriv = dict()
+
         for i, activation in enumerate(activations):
             try:
-                act_fun, deriv_fun = activations_dict[activation]
+                act_fun, deriv_fun = ACTIVATIONS[activation]
                 self.activations[i + 1] = act_fun
                 self.activations_deriv[i + 1] = deriv_fun
             except KeyError:
                 exit('Unsupported activation' + activation)
 
         # Last layer: either sigmoid or softmax
-        if self.n_neurons[-1] == 1:
-            self.activations[self.n_layers - 1] = utils.sigmoid
-            self.activations_deriv[self.n_layers - 1] = utils.sigmoid_deriv
-        else:
-            self.activations[self.n_layers - 1] = utils.softmax
-            self.activations_deriv[self.n_layers - 1] = utils.softmax_deriv
+        act_fun, deriv_fun = (ACTIVATIONS['sigmoid'] if self.n_neurons[-1] == 1
+                              else ACTIVATIONS['softmax'])
+        self.activations[self.n_layers - 1] = act_fun
+        self.activations_deriv[self.n_layers - 1] = deriv_fun
 
     def init_params(self, seed, init_strat):
         '''Initialize weights and biases.'''
@@ -167,8 +167,7 @@ class NeuralNet(BaseEstimator):
             loss = self.compute_loss(y_hat, y)
             self.losses.append(loss)
             if self.verbose and current_epoch % self.verbose == 0:
-                print('Epoch {0:5d}, loss= {1:1.3f}'.format(current_epoch,
-                                                            loss))
+                print('Epoch {0:5d}, loss= {1:1.3f}'.format(current_epoch, loss))
 
         return self
 
@@ -200,20 +199,28 @@ class NeuralNet(BaseEstimator):
 
         A = dict()
         Z = dict()
+        D = dict()  # dropout coefficients
 
         A[0] = X
         for l in range(1, self.n_layers):
             Z[l] = self.W[l].dot(A[l - 1]) + self.b[l]
             A[l] = self.activations[l](Z[l])
+            if l != self.n_layers - 1:
+                # No dropout on input layer and output layer. In Hinton's
+                # paper, they allow dropout for input layer but indicate it
+                # should be very low.
+                D[l] = np.random.binomial(n=1, p=self.dropout, size=A[l].shape)
+                A[l] = A[l] * D[l] / self.dropout
 
-        cache = A, Z  # weights are attributes so no need to cache them
+        cache = A, Z, D
 
         return A[self.n_layers - 1], cache
 
     def backward(self, X, y, cache):
         """Backward pass. Returns gradients."""
 
-        A, Z = cache
+        A, Z, D = cache
+
         n = X.shape[1]  # number of training examples
 
         dZ = dict()  # Note: no need to keep dA[l]
@@ -229,6 +236,7 @@ class NeuralNet(BaseEstimator):
         # Backprop remaining layers
         for l in reversed(range(1, self.n_layers - 1)):
             dAl = self.W[l + 1].T.dot(dZ[l + 1])
+            dAl = dAl * D[l] / self.dropout
             dAdZ = self.activations_deriv[l](Z[l])
             dZ[l] = dAdZ * dAl
             dW[l] = 1 / n * (dZ[l].dot(A[l - 1].T) + self.lbd * self.W[l])

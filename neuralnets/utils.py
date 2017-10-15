@@ -32,3 +32,11 @@ def softmax(x):  # with numerical stability, as suggested in Karpathy's notes.
 
 def softmax_deriv(x):  # don't really care
     raise ValueError('Ooops, should never be called')
+
+ACTIVATIONS = {  # map name to functions
+    'sigmoid': (sigmoid, sigmoid_deriv),
+    'relu': (relu, relu_deriv),
+    'tanh': (tanh, tanh_deriv),
+    'linear': (linear, linear_deriv),
+    'softmax': (softmax, softmax_deriv),
+}
