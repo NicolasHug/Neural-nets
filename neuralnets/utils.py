@@ -27,7 +27,7 @@ def linear_deriv(x):
     return 1
 
 def softmax(x):  # with numerical stability, as suggested in Karpathy's notes.
-    x -= np.max(x, axis=0)
+    x = x - np.max(x, axis=0)  # -= would make it inplace
     return np.exp(x) / np.sum(np.exp(x), axis=0)
 
 def softmax_deriv(x):  # don't really care

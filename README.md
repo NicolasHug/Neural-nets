@@ -84,21 +84,25 @@ See other examples in the `examples` directory.
 Installation
 ------------
 
-You'd be much happier with keras or tensorflow or anything BUT if you like to
-live dangerously:
+You'd be much happier with scikit-learn default implementation, BUT if you like
+to live dangerously:
 
 - First install scipy, numpy, matplotlib and scikit-learn (only used for
   dataset management). Can be done with
 
+    ```
     $ pip install -r requirements.txt
+    ```
 
 - Then:
 
+    ```
     $ python setup.py install
+    ```
 
  
 Documentation
 -------------
 
 Minimal doc of the NeuralNet class is available
-[here](http://neural-nets.readthedocs.io)
+[here](http://neural-nets.readthedocs.io).
